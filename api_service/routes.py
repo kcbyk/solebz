@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from . import models, database
-from solenz_downloader import download_audio, download_video
+from solenz_downloader import download_audio, download_video, search_youtube
 
 router = APIRouter()
 
@@ -161,6 +161,14 @@ def download_file(job_id: str, background_tasks: BackgroundTasks, db: Session = 
     background_tasks.add_task(cleanup_file, job.file_path)
     
     return FileResponse(path=job.file_path, filename=filename, media_type="application/octet-stream")
+
+@router.get("/api/v1/search")
+def search_media(query: str, limit: int = 10, api_key: models.APIKey = Depends(verify_api_key)):
+    try:
+        results = search_youtube(query, limit=limit)
+        return {"status": "success", "results": [r.__dict__ for r in results]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/api/stats")
 def get_stats(api_key: models.APIKey = Depends(verify_api_key)):
