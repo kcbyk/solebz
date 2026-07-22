@@ -198,6 +198,15 @@ class SolenzDownloader:
         headers: dict[str, str] = {}
         if referer:
             headers["Referer"] = referer
+
+        # Cerez havuzu aktifse googlevideo indirmesine de Cookie ekle (403 engellerini onler)
+        try:
+            from ..utils.cookies import CookiePool
+            cp = CookiePool(directory="cookies")
+            if cp.pool:
+                headers["Cookie"] = cp.get_random_cookie_string()
+        except Exception:
+            pass
         if start_byte > 0:
             headers["Range"] = f"bytes={start_byte}-"
 

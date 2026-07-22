@@ -159,12 +159,34 @@ class CookiePool:
                     with open(file_path, "r", encoding="utf-16") as f:
                         content = f.read().strip()
                 
-                # Eger dosya bombossa veya cok kisaysa alma
-                if len(content) > 10:
-                    self.pool.append(content)
+                # Eger dosya Netscape formatindaysa HTTP header formatina cevir
+                parsed_cookie = self._parse_cookie_content(content)
+                if len(parsed_cookie) > 10:
+                    self.pool.append(parsed_cookie)
                     loaded_count += 1
             except Exception as e:
                 logger.warning(f"Cookie dosyasi okunamadi ({file_path}): {e}")
+
+    def _parse_cookie_content(self, content: str) -> str:
+        """Netscape veya duz HTTP Cookie string formatindaki icerigi tek satir HTTP Cookie header string'ine donusturur."""
+        lines = content.splitlines()
+        cookie_pairs = []
+        
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            
+            parts = line.split("\t")
+            if len(parts) >= 7:
+                name = parts[5].strip()
+                val = parts[6].strip()
+                cookie_pairs.append(f"{name}={val}")
+        
+        if cookie_pairs:
+            return "; ".join(cookie_pairs)
+        
+        return content
 
         if loaded_count > 0:
             logger.info(f"Havuzdan {loaded_count} adet cerez basariyla yuklendi.")
