@@ -30,8 +30,11 @@ DEFAULT_IMPERSONATE = "chrome124"
 # Dogrudan Tailscale mesh IP uzerinden (Android TV'de SOCKS5 servisi varsa):
 # DEFAULT_PROXY = "socks5://100.109.239.23:1080"  # Senin Android TV Tailscale IP'n!
 
-# Proxy kullanilmiyor (None = dogrudan baglanti) - Exit node zaten aktif!
-DEFAULT_PROXY = None
+import os
+
+# Proxy yapilandirmasi: PROXY_URL veya SOLENZ_PROXY ortam degiskeni varsa kullanilir.
+# Ornek: "socks5h://100.109.239.23:1080" veya "socks5h://localhost:1080"
+DEFAULT_PROXY = os.getenv("PROXY_URL") or os.getenv("SOLENZ_PROXY") or None
 
 # --------------------------------------------------------------------------- #
 #  Indirme Motoru Ayarlari (HIZ OPTİMİZASYONU)
