@@ -238,6 +238,9 @@ class SolenzClient:
 
                 if self._proxy_dict:
                     kwargs["proxies"] = self._proxy_dict
+                else:
+                    # Bozuk sistem/konteyner SOCKS5 ortam degiskenlerini (ALL_PROXY) ezerek dogrudan baglanti kur
+                    kwargs["proxies"] = {"http": "", "https": ""}
                 if params:
                     kwargs["params"] = params
                 if data is not None:
