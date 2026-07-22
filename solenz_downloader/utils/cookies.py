@@ -152,12 +152,17 @@ class CookiePool:
 
         for file_path in txt_files:
             try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    content = f.read().strip()
-                    # Eger dosya bombossa veya cok kısaysa alma
-                    if len(content) > 10:
-                        self.pool.append(content)
-                        loaded_count += 1
+                try:
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        content = f.read().strip()
+                except UnicodeDecodeError:
+                    with open(file_path, "r", encoding="utf-16") as f:
+                        content = f.read().strip()
+                
+                # Eger dosya bombossa veya cok kisaysa alma
+                if len(content) > 10:
+                    self.pool.append(content)
+                    loaded_count += 1
             except Exception as e:
                 logger.warning(f"Cookie dosyasi okunamadi ({file_path}): {e}")
 

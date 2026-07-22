@@ -32,9 +32,8 @@ DEFAULT_IMPERSONATE = "chrome124"
 
 import os
 
-# Proxy yapilandirmasi: PROXY_URL veya SOLENZ_PROXY ortam degiskeni varsa kullanilir.
-# Ornek: "socks5h://100.109.239.23:1080" veya "socks5h://localhost:1080"
-DEFAULT_PROXY = os.getenv("PROXY_URL") or os.getenv("SOLENZ_PROXY") or None
+# Proxy yapilandirmasi devre disi birakildi (SOCKS5 hatalarini onlemek ve Cookie Pool'u kullanmak icin)
+DEFAULT_PROXY = None
 
 # --------------------------------------------------------------------------- #
 #  Indirme Motoru Ayarlari (HIZ OPTİMİZASYONU)
