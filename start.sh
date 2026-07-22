@@ -13,6 +13,12 @@ else
     echo "UYARI: TAILSCALE_AUTHKEY veya EXIT_NODE_IP bulunamadi. Dogrudan baglanti kullanilacak."
 fi
 
-# 3. FastAPI Sunucusunu baslat
+# 3. Python (Uvicorn) uygulamasinin butun trafigini Tailscale SOCKS5 uzerinden gecmesi icin degiskenleri ayarla
+export HTTP_PROXY="socks5://localhost:1055"
+export HTTPS_PROXY="socks5://localhost:1055"
+export ALL_PROXY="socks5://localhost:1055"
+
+# 4. FastAPI Sunucusunu baslat
 echo "FastAPI sunucusu baslatiliyor..."
 uvicorn api_service.main:app --host 0.0.0.0 --port 8000
+
