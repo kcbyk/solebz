@@ -72,6 +72,8 @@ def cleanup_file(filepath: str):
             os.remove(filepath)
     except Exception as e:
         print(f"Dosya temizlenemedi: {e}")
+
+def background_download(job_id: str, url: str, mode: str, output_dir: str = "./downloads"):
     db = database.SessionLocal()
     try:
         job = db.query(models.DownloadJob).filter(models.DownloadJob.id == job_id).first()
