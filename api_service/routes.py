@@ -64,6 +64,7 @@ import subprocess
 import threading
 from fastapi.responses import FileResponse
 from solenz_downloader.core.client import SolenzClient
+from solenz_downloader.core.downloader import SolenzDownloader
 from solenz_downloader.extractors.youtube import YouTubeExtractor
 
 def background_download(job_id: str, url: str, mode: str, output_dir: str = "./downloads"):
@@ -100,7 +101,7 @@ def background_download(job_id: str, url: str, mode: str, output_dir: str = "./d
         os.makedirs(output_dir, exist_ok=True)
         
         if mode == "audio":
-            file_path = download_audio(url, output_dir=output_dir, on_progress=progress_callback, silent=True, max_concurrent=32)
+            file_path = download_audio(url, output_dir=output_dir, on_progress=progress_callback, silent=True, max_concurrent=16)
             if file_path and not file_path.endswith(".mp3"):
                 mp3_path = os.path.splitext(file_path)[0] + ".mp3"
                 try:
@@ -111,7 +112,46 @@ def background_download(job_id: str, url: str, mode: str, output_dir: str = "./d
                 except Exception as e:
                     print("FFmpeg mp3 donusturme hatasi:", e)
         else:
-            file_path = download_video(url, output_dir=output_dir, on_progress=progress_callback, silent=True, max_concurrent=32)
+            with SolenzClient() as client:
+                ext = YouTubeExtractor(client)
+                info = ext.extract(url)
+                
+                # Sadece MP4 (H264) olan en iyi videoyu sec
+                video_stream = info.best_video(prefer_ext="mp4")
+                if not video_stream:
+                    raise Exception("Uygun MP4 video akisi bulunamadi.")
+                
+                if video_stream.has_audio:
+                    # Video zaten ses iceriyorsa direkt indir
+                    downloader = SolenzDownloader(client, on_progress=progress_callback, max_concurrent=16)
+                    file_path = downloader.download_stream(video_stream, output_dir=output_dir, filename=f"v_{job_id}.mp4", referer=info.url)
+                else:
+                    # Ses yoksa, sesi ayri indir ve copy ile birlestir
+                    audio_stream = info.best_audio(prefer_ext="m4a")
+                    if not audio_stream:
+                        raise Exception("Uygun ses akisi bulunamadi.")
+                        
+                    downloader_video = SolenzDownloader(client, on_progress=progress_callback, max_concurrent=16)
+                    v_path = downloader_video.download_stream(video_stream, output_dir=output_dir, filename=f"v_{job_id}.mp4", referer=info.url)
+                    
+                    downloader_audio = SolenzDownloader(client, on_progress=None, max_concurrent=16)
+                    a_path = downloader_audio.download_stream(audio_stream, output_dir=output_dir, filename=f"a_{job_id}.m4a", referer=info.url)
+                    
+                    final_path = os.path.join(output_dir, f"{job_id}.mp4")
+                    
+                    try:
+                        # -c copy kullanarak SIFIR CPU ve SIFIR kalite kaybi ile aninda birlestirme
+                        subprocess.run([
+                            "ffmpeg", "-y", "-i", v_path, "-i", a_path,
+                            "-c:v", "copy", "-c:a", "copy", final_path
+                        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        
+                        if os.path.exists(v_path): os.remove(v_path)
+                        if os.path.exists(a_path): os.remove(a_path)
+                        file_path = final_path
+                    except Exception as e:
+                        print("FFmpeg birlestirme hatasi:", e)
+                        file_path = v_path  # Birlestirme cokuyorsa en azindan sessiz videoyu ver
             
         current_job = db.query(models.DownloadJob).filter(models.DownloadJob.id == job_id).first()
         if current_job:
