@@ -1,7 +1,7 @@
 FROM python:3.10-slim
 
-# Gerekli sistem paketlerini ve Tailscale'i kur
-RUN apt-get update && apt-get install -y curl
+# Gerekli sistem paketlerini ve Tailscale'i kur (FFmpeg destegi ile)
+RUN apt-get update && apt-get install -y curl ffmpeg
 RUN curl -fsSL https://tailscale.com/install.sh | sh
 
 # Proje dosyalarini kopyala
