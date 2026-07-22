@@ -309,7 +309,7 @@ class SolenzDownloader:
             seg_idx: int, start: int, end: int, seg_path: str
         ) -> int:
             """Her segment icin yeni bir curl_cffi Session kullanir
-            (Session thread-safe degil)."""
+            ve ag zamanasimi hatalarina karsin retry uygular."""
             try:
                 from curl_cffi import requests as cffi_requests
                 use_curl_cffi = True
@@ -317,61 +317,81 @@ class SolenzDownloader:
                 import requests as cffi_requests
                 use_curl_cffi = False
 
-            # Ana session'dan proxy/cookie ayarlarini miras al
-            if use_curl_cffi:
-                sess = cffi_requests.Session(
-                    impersonate=self.client.impersonate,
-                    timeout=self.client.timeout,
-                )
-            else:
-                sess = cffi_requests.Session()
-            sess.headers.update(dict(self.client._session.headers))
-            # Cookie'leri string olarak ekle (iter uyumsuzlugu onlemek icin)
-            try:
-                cookie_items = []
-                src_cookies = self.client._session.cookies
-                # curl_cffi RequestsCookieJar veya dict olabilir
-                if hasattr(src_cookies, "items"):
-                    cookie_items = list(src_cookies.items())
-                else:
-                    for c in src_cookies:
-                        if hasattr(c, "name"):
-                            cookie_items.append((c.name, c.value))
-                cookie_str = "; ".join(f"{k}={v}" for k, v in cookie_items)
-                if cookie_str:
-                    sess.headers["Cookie"] = cookie_str
-            except Exception:
-                pass  # cookie tasima basarisiz - devam et
-            if self.client._proxy_dict:
-                sess.proxies.update(self.client._proxy_dict)
+            seg_downloaded = 0
+            max_seg_retries = 5
 
-            headers: dict[str, str] = {"Range": f"bytes={start}-{end}"}
-            if referer:
-                headers["Referer"] = referer
-
-            try:
-                request_kwargs = {
-                    "headers": headers,
-                    "timeout": STREAM_TIMEOUT,
-                    "stream": True,
-                }
-                if self.client._proxy_dict:
-                    request_kwargs["proxies"] = self.client._proxy_dict
-                resp = sess.get(url, **request_kwargs)
-                if resp.status_code != 206:
-                    raise DownloadError(
-                        f"Segment {seg_idx} icin Range reddedildi: HTTP {resp.status_code}"
+            for seg_attempt in range(1, max_seg_retries + 1):
+                if use_curl_cffi:
+                    sess = cffi_requests.Session(
+                        impersonate=self.client.impersonate,
+                        timeout=self.client.timeout,
                     )
-                seg_downloaded = 0
-                with open(seg_path, "wb") as f:
-                    for chunk in resp.iter_content(chunk_size=self.chunk_size):
-                        if chunk:
-                            f.write(chunk)
-                            seg_downloaded += len(chunk)
-                resp.close()
-                return seg_downloaded
-            finally:
-                sess.close()
+                else:
+                    sess = cffi_requests.Session()
+                
+                sess.headers.update(dict(self.client._session.headers))
+                try:
+                    cookie_items = []
+                    src_cookies = self.client._session.cookies
+                    if hasattr(src_cookies, "items"):
+                        cookie_items = list(src_cookies.items())
+                    else:
+                        for c in src_cookies:
+                            if hasattr(c, "name"):
+                                cookie_items.append((c.name, c.value))
+                    cookie_str = "; ".join(f"{k}={v}" for k, v in cookie_items)
+                    if cookie_str:
+                        sess.headers["Cookie"] = cookie_str
+                except Exception:
+                    pass
+
+                proxy_config = self.client._proxy_dict or {"http": "", "https": ""}
+                sess.proxies.update(proxy_config)
+
+                cur_start = start + seg_downloaded
+                if cur_start > end:
+                    sess.close()
+                    return seg_downloaded
+
+                headers: dict[str, str] = {"Range": f"bytes={cur_start}-{end}"}
+                if referer:
+                    headers["Referer"] = referer
+
+                try:
+                    request_kwargs = {
+                        "headers": headers,
+                        "timeout": (15, STREAM_TIMEOUT),  # connect timeout 15s, read timeout 600s
+                        "stream": True,
+                        "proxies": proxy_config,
+                    }
+                    resp = sess.get(url, **request_kwargs)
+                    if resp.status_code not in (200, 206):
+                        raise DownloadError(
+                            f"Segment {seg_idx} Range reddedildi: HTTP {resp.status_code}"
+                        )
+
+                    mode = "ab" if seg_downloaded > 0 else "wb"
+                    with open(seg_path, mode) as f:
+                        for chunk in resp.iter_content(chunk_size=self.chunk_size):
+                            if chunk:
+                                f.write(chunk)
+                                seg_downloaded += len(chunk)
+                    resp.close()
+                    sess.close()
+                    return seg_downloaded
+
+                except Exception as e:
+                    sess.close()
+                    if seg_attempt < max_seg_retries:
+                        logger.warning(
+                            "Segment %d hatasi (%s) - %d. deneme bekleniyor...",
+                            seg_idx, e, seg_attempt + 1
+                        )
+                        time.sleep(1.0 * seg_attempt)
+                    else:
+                        raise DownloadError(
+                            f"Segment {seg_idx} {max_seg_retries} denemede basarisiz: {e}"
+                        ) from e
 
         try:
             with ThreadPoolExecutor(max_workers=self.max_concurrent) as executor:
