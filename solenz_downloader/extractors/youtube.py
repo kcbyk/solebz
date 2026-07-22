@@ -15,9 +15,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import glob
 import re
 from typing import Any
 from urllib.parse import unquote, parse_qs, quote
+
 
 from .base import BaseExtractor, registry
 from ..core.models import MediaResult, StreamInfo, YouTubeSearchResult
@@ -184,6 +187,16 @@ class YouTubeExtractor(BaseExtractor):
                 return result
         except Exception as e:
             logger.warning("Web sayfasi basarisiz: %s", e)
+
+        # Adim 5: yt-dlp ile cikarma (Garantili Son Yontem)
+        try:
+            logger.info("yt-dlp ile cikarma deneniyor...")
+            result = self._extract_with_ytdlp(video_id, url)
+            if result and result.streams:
+                logger.info("yt-dlp basariyla %d akis cikardi!", len(result.streams))
+                return result
+        except Exception as e:
+            logger.warning("yt-dlp ile cikarma basarisiz: %s", e)
 
         raise ExtractionError(f"Hicbir yontemle akis cikarilmadi: {video_id}")
 
@@ -385,6 +398,106 @@ class YouTubeExtractor(BaseExtractor):
         micro = data.get("microformat", {}).get("playerMicroformatRenderer", {})
 
         return self._build_result(vd, micro, streams, video_id, url)
+
+    # ================================================================== #
+    #  YT-DLP ILE CIKARMA (GARANTILI YEDEK)
+    # ================================================================== #
+
+    def _extract_with_ytdlp(self, video_id: str, url: str) -> MediaResult:
+        """yt-dlp kütüphanesini kullanarak YouTube akışlarını ve metadataları çıkarır."""
+        try:
+            import yt_dlp
+        except ImportError:
+            raise ExtractionError("yt-dlp kütüphanesi yüklü değil")
+
+        txt_files = glob.glob("cookies/*.txt")
+        cookie_file = txt_files[0] if txt_files else None
+
+        ydl_opts: dict[str, Any] = {
+            "quiet": True,
+            "no_warnings": True,
+            "extract_flat": False,
+            "nocheckcertificate": True,
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android", "web", "tv"],
+                    "player_skip": ["webpage", "configs"],
+                }
+            },
+        }
+
+        if cookie_file and os.path.exists(cookie_file):
+            ydl_opts["cookiefile"] = cookie_file
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                if not info:
+                    raise ExtractionError("yt-dlp metadata alamadi")
+
+                title = info.get("title", video_id)
+                duration = info.get("duration")
+                uploader = info.get("uploader")
+                thumbnail = info.get("thumbnail")
+                view_count = info.get("view_count")
+                description = info.get("description")
+
+                streams: list[StreamInfo] = []
+                for fmt in info.get("formats", []):
+                    fmt_url = fmt.get("url")
+                    if not fmt_url:
+                        continue
+
+                    height = fmt.get("height")
+                    width = fmt.get("width")
+                    format_id = fmt.get("format_id", "")
+                    ext = fmt.get("ext", "mp4")
+                    vcodec = fmt.get("vcodec", "none")
+                    acodec = fmt.get("acodec", "none")
+                    filesize = fmt.get("filesize") or fmt.get("filesize_approx")
+                    fps = fmt.get("fps")
+                    bitrate = fmt.get("tbr") or fmt.get("vbr") or fmt.get("abr")
+
+                    has_video = vcodec != "none"
+                    has_audio = acodec != "none"
+
+                    res = f"{height}p" if height else ("Audio" if has_audio and not has_video else None)
+
+                    streams.append(
+                        StreamInfo(
+                            url=fmt_url,
+                            format_id=format_id,
+                            ext=ext,
+                            resolution=res,
+                            height=height,
+                            width=width,
+                            filesize=filesize,
+                            fps=fps,
+                            bitrate=int(bitrate) if bitrate else None,
+                            has_video=has_video,
+                            has_audio=has_audio,
+                            vcodec=vcodec,
+                            acodec=acodec,
+                        )
+                    )
+
+                streams.sort(key=lambda s: (s.height or 0, s.bitrate or 0), reverse=True)
+
+                return MediaResult(
+                    media_id=video_id,
+                    title=title,
+                    url=url,
+                    thumbnail=thumbnail,
+                    uploader=uploader,
+                    duration=duration,
+                    view_count=view_count,
+                    description=description,
+                    streams=streams,
+                    extractor="youtube (yt-dlp)",
+                )
+        except Exception as e:
+            raise ExtractionError(f"yt-dlp hatasi: {e}") from e
+
 
     # ================================================================== #
     #  AKIS AYRISTIRMA

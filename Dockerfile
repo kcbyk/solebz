@@ -9,7 +9,7 @@ WORKDIR /app
 COPY . /app
 
 # Python bagimliliklarini kur
-RUN pip install --no-cache-dir fastapi uvicorn sqlalchemy pydantic curl_cffi requests
+RUN pip install --no-cache-dir fastapi uvicorn sqlalchemy pydantic curl_cffi requests yt-dlp
 
 # Baslatma scriptine calisma izni ver
 RUN chmod +x /app/start.sh
