@@ -47,6 +47,7 @@ def generate_key(req: KeyCreate, db: Session = Depends(get_db)):
     return {"key": db_item.key, "name": db_item.name}
 
 import os
+import subprocess
 from fastapi.responses import FileResponse
 
 def background_download(job_id: str, url: str, mode: str, output_dir: str = "./downloads"):
@@ -73,6 +74,15 @@ def background_download(job_id: str, url: str, mode: str, output_dir: str = "./d
         
         if mode == "audio":
             file_path = download_audio(url, output_dir=output_dir, on_progress=progress_callback, silent=True)
+            if file_path and not file_path.endswith(".mp3"):
+                mp3_path = os.path.splitext(file_path)[0] + ".mp3"
+                try:
+                    subprocess.run(["ffmpeg", "-y", "-i", file_path, "-q:a", "0", "-map", "a", mp3_path], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                    file_path = mp3_path
+                except Exception as e:
+                    print("FFmpeg mp3 donusturme hatasi:", e)
         else:
             file_path = download_video(url, output_dir=output_dir, on_progress=progress_callback, silent=True)
             
