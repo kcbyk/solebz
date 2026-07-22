@@ -28,6 +28,19 @@ def get_db():
 def verify_api_key(x_api_key: str = Header(None), db: Session = Depends(get_db)):
     if not x_api_key:
         raise HTTPException(status_code=401, detail="API Key eksik.")
+        
+    master_key = os.getenv("MASTER_API_KEY", "solebz_benimsifrem_123")
+    if x_api_key == master_key:
+        db_key = db.query(models.APIKey).filter(models.APIKey.key == master_key).first()
+        if not db_key:
+            db_key = models.APIKey(key=master_key, name="Master Key")
+            db.add(db_key)
+            db.commit()
+            db.refresh(db_key)
+        db_key.uses += 1
+        db.commit()
+        return db_key
+
     db_key = db.query(models.APIKey).filter(models.APIKey.key == x_api_key).first()
     if not db_key or not db_key.is_active:
         raise HTTPException(status_code=401, detail="Gecersiz veya pasif API Key.")

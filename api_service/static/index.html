@@ -17,8 +17,17 @@
         </header>
 
         <main>
+            <div class="card" style="border-color: var(--accent);">
+                <h2>Sabit API Anahtarı (Master Key)</h2>
+                <p>Kendi kişisel projelerinizde (sunucu sıfırlansa bile silinmeyen) sabit anahtarınızı kullanabilirsiniz.</p>
+                <div class="key-display" style="margin-top: 1rem; margin-bottom: 1rem;" onclick="navigator.clipboard.writeText('solebz_benimsifrem_123'); alert('Master Key kopyalandı!')">
+                    <code>solebz_benimsifrem_123</code>
+                    <span class="copy-hint">Kopyalamak için tıklayın</span>
+                </div>
+            </div>
+
             <div class="card">
-                <h2>Geliştirici Anahtarı Al</h2>
+                <h2>Geliştirici Anahtarı Al (Dinamik)</h2>
                 <p>Sistemi uzaktan kullanmak için uygulamanıza özel bir anahtar (API Key) üretin.</p>
                 
                 <div class="input-group">
