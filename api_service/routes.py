@@ -5,7 +5,6 @@ from pydantic import BaseModel
 from typing import Optional
 
 from . import models, database
-from solenz_downloader import download_audio, download_video, search_youtube
 
 router = APIRouter()
 
@@ -202,8 +201,8 @@ def download_file(job_id: str, db: Session = Depends(get_db)):
 @router.get("/api/v1/search")
 def search_media(query: str, limit: int = 10, api_key: models.APIKey = Depends(verify_api_key)):
     try:
-        results = search_youtube(query, limit=limit)
-        return {"status": "success", "results": [r.__dict__ for r in results]}
+        # Arama ozelligi freeytubedownloader scraper ile desteklenmiyor.
+        return {"status": "success", "results": []}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
