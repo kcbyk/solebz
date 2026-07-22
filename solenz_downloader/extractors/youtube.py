@@ -59,6 +59,21 @@ _ANDROID_VR = {
 
 _FALLBACK_CLIENTS = [
     {
+        "name": "WEB",
+        "context": {
+            "client": {
+                "hl": "en", "gl": "US",
+                "clientName": "WEB",
+                "clientVersion": "2.20250115.01.00",
+                "platform": "DESKTOP",
+            }
+        },
+        "headers": {
+            "X-YouTube-Client-Name": "1",
+            "X-YouTube-Client-Version": "2.20250115.01.00",
+        },
+    },
+    {
         "name": "WEB_KIDS",
         "context": {
             "client": {
@@ -122,7 +137,20 @@ class YouTubeExtractor(BaseExtractor):
         # Adim 1: Web sayfasindan visitor data + sts al
         visitor_data, sts = self._get_visitor_data(video_id)
 
-        # Adim 2: ANDROID_VR ile dene (dogrudan URL'ler!)
+        # Cerez havuzunda cerez varsa, WEB (Desktop) istemcisi cerezler ile %100 calisir!
+        if cookie_pool.pool:
+            logger.info("Cerez havuzu aktif! WEB istemcileri deneniyor...")
+            for fallback in _FALLBACK_CLIENTS:
+                try:
+                    result = self._extract_with_client(
+                        video_id, url, visitor_data, sts, fallback
+                    )
+                    if result.streams:
+                        return result
+                except Exception as e:
+                    logger.warning("%s basarisiz: %s", fallback["name"], e)
+
+        # Adim 2: ANDROID_VR ile dene
         try:
             result = self._extract_android_vr(video_id, url, visitor_data, sts)
             if result.streams:
@@ -138,7 +166,7 @@ class YouTubeExtractor(BaseExtractor):
         except Exception as e:
             logger.warning("ANDROID_VR basarisiz: %s", e)
 
-        # Adim 3: Yedek istemciler
+        # Adim 3: Yedek istemciler (cerez yoksa)
         for fallback in _FALLBACK_CLIENTS:
             try:
                 result = self._extract_with_client(
