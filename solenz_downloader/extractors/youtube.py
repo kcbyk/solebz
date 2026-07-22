@@ -189,6 +189,9 @@ class YouTubeExtractor(BaseExtractor):
             if v_resp.status_code == 200:
                 v_json = v_resp.json()
                 visitor_data = v_json.get("responseContext", {}).get("visitorData", "")
+                if visitor_data:
+                    # Eger visitor_data basariyla alindiysa web sayfasini cekmeye gerek yok (Hizli Baslangic)
+                    return visitor_data, sts
         except Exception as e:
             logger.warning("visitor_id API hatasi: %s", e)
 

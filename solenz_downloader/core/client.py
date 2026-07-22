@@ -239,7 +239,7 @@ class SolenzClient:
 
                 if self._proxy_dict:
                     kwargs["proxies"] = self._proxy_dict
-                elif os.getenv("DISABLE_ENV_PROXY", "0") == "1":
+                else:
                     kwargs["proxies"] = {"http": "", "https": ""}
                 if params:
                     kwargs["params"] = params
