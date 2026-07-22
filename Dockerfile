@@ -8,11 +8,8 @@ RUN curl -fsSL https://tailscale.com/install.sh | sh
 WORKDIR /app
 COPY . /app
 
-# Python bagimliliklarini kur (yt-dlp yerine playwright ekliyoruz)
-RUN pip install --no-cache-dir fastapi uvicorn sqlalchemy pydantic curl_cffi requests pysocks playwright playwright-stealth
-
-# Playwright tarayicisini ve bagimliliklarini kur
-RUN playwright install --with-deps chromium
+# Python bagimliliklarini kur
+RUN pip install --no-cache-dir fastapi uvicorn sqlalchemy pydantic curl_cffi requests pysocks yt-dlp
 # Baslatma scriptine calisma izni ver
 RUN chmod +x /app/start.sh
 

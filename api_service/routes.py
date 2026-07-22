@@ -62,9 +62,9 @@ import os
 import subprocess
 import threading
 import asyncio
+import asyncio
 from fastapi.responses import FileResponse
-from .freeyt_scraper import extract_freeyt
-from .downloader import download_file_to_disk
+from .youtube_scraper import download_with_ytdlp
 
 def cleanup_file(filepath: str):
     try:
@@ -85,18 +85,9 @@ def background_download(job_id: str, url: str, mode: str, output_dir: str = "./d
         
         # freeytubedownloader.com uzerinden link ve metadata cekme
         try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            info = loop.run_until_complete(extract_freeyt(url))
-            loop.close()
-            
-            job.title = info.get("title", "Video")
-            job.cover = info.get("thumbnail")
-            db.commit()
-            
-            raw_url = info.get("download_url")
-            
             os.makedirs(output_dir, exist_ok=True)
+            file_ext = ".mp4" if mode != "audio" else ".mp3"
+            output_path = os.path.join(output_dir, f"{job_id}{file_ext}")
             
             def progress_cb(downloaded, total):
                 if total > 0:
@@ -106,17 +97,11 @@ def background_download(job_id: str, url: str, mode: str, output_dir: str = "./d
                         current_job.progress = pct
                         db.commit()
 
-            file_ext = ".mp4" if mode != "audio" else ".mp3" # Basit bir uzanti
-            output_path = os.path.join(output_dir, f"{job_id}{file_ext}")
+            info = download_with_ytdlp(url, output_path, progress_callback=progress_cb, mode=mode)
             
-            download_file_to_disk(raw_url, output_path, progress_cb)
-            
-            if mode == "audio":
-                # mp4 to mp3 convert eger gerekirse burada ffmpeg eklenebilir, simdilik mp4 iner ama uzanti mp3 olur
-                # Ya da ffmpeg ile cevirme eklenebilir
-                pass
-
             job = db.query(models.DownloadJob).filter(models.DownloadJob.id == job_id).first()
+            job.title = info.get("title", "Video")
+            job.cover = info.get("thumbnail")
             job.progress = 100
             job.status = "completed"
             job.file_path = output_path
