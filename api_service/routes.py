@@ -101,7 +101,7 @@ def background_download(job_id: str, url: str, mode: str, output_dir: str = "./d
         os.makedirs(output_dir, exist_ok=True)
         
         if mode == "audio":
-            file_path = download_audio(url, output_dir=output_dir, on_progress=progress_callback, silent=True, max_concurrent=16)
+            file_path = download_audio(url, output_dir=output_dir, on_progress=progress_callback, silent=True, max_concurrent=4)
             if file_path and not file_path.endswith(".mp3"):
                 mp3_path = os.path.splitext(file_path)[0] + ".mp3"
                 try:
@@ -123,7 +123,7 @@ def background_download(job_id: str, url: str, mode: str, output_dir: str = "./d
                 
                 if video_stream.has_audio:
                     # Video zaten ses iceriyorsa direkt indir
-                    downloader = SolenzDownloader(client, on_progress=progress_callback, max_concurrent=16)
+                    downloader = SolenzDownloader(client, on_progress=progress_callback, max_concurrent=4)
                     file_path = downloader.download_stream(video_stream, output_dir=output_dir, filename=f"v_{job_id}.mp4", referer=info.url)
                 else:
                     # Ses yoksa, sesi ayri indir ve copy ile birlestir
@@ -131,10 +131,10 @@ def background_download(job_id: str, url: str, mode: str, output_dir: str = "./d
                     if not audio_stream:
                         raise Exception("Uygun ses akisi bulunamadi.")
                         
-                    downloader_video = SolenzDownloader(client, on_progress=progress_callback, max_concurrent=16)
+                    downloader_video = SolenzDownloader(client, on_progress=progress_callback, max_concurrent=4)
                     v_path = downloader_video.download_stream(video_stream, output_dir=output_dir, filename=f"v_{job_id}.mp4", referer=info.url)
                     
-                    downloader_audio = SolenzDownloader(client, on_progress=None, max_concurrent=16)
+                    downloader_audio = SolenzDownloader(client, on_progress=None, max_concurrent=4)
                     a_path = downloader_audio.download_stream(audio_stream, output_dir=output_dir, filename=f"a_{job_id}.m4a", referer=info.url)
                     
                     final_path = os.path.join(output_dir, f"{job_id}.mp4")
