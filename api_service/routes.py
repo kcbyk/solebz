@@ -126,8 +126,15 @@ def get_status(job_id: str, db: Session = Depends(get_db)):
         "error": job.error_message
     }
 
+def cleanup_file(path: str):
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except Exception as e:
+        print(f"Dosya temizleme hatasi: {e}")
+
 @router.get("/api/v1/file/{job_id}")
-def download_file(job_id: str, db: Session = Depends(get_db)):
+def download_file(job_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     job = db.query(models.DownloadJob).filter(models.DownloadJob.id == job_id).first()
     if not job or job.status != "completed" or not job.file_path:
         raise HTTPException(status_code=404, detail="Dosya hazir degil veya bulunamadi.")
@@ -136,6 +143,10 @@ def download_file(job_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Dosya sunucudan silinmis.")
         
     filename = os.path.basename(job.file_path)
+    
+    # Dosya gonderildikten sonra silinmesi icin arka plana gorev ekliyoruz
+    background_tasks.add_task(cleanup_file, job.file_path)
+    
     return FileResponse(path=job.file_path, filename=filename, media_type="application/octet-stream")
 
 @router.get("/api/stats")
