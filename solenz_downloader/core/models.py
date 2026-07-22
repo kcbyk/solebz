@@ -100,7 +100,7 @@ class MediaResult:
             height = s.height or 0
             width = s.width or 0
             ext_pref = 1 if s.ext == prefer_ext else 0
-            return (height, width, ext_pref)
+            return (ext_pref, height, width)
 
         return max(video_streams, key=_sort_key)
 
@@ -131,7 +131,7 @@ class MediaResult:
         if combined:
             return max(
                 combined,
-                key=lambda s: (s.height or 0, s.width or 0, 1 if s.ext == prefer_ext else 0),
+                key=lambda s: (1 if s.ext == prefer_ext else 0, s.height or 0, s.width or 0),
             )
         return self.best_video(prefer_ext=prefer_ext) or self.best_audio()
 

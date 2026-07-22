@@ -99,7 +99,7 @@ def background_download(job_id: str, url: str, mode: str, output_dir: str = "./d
         os.makedirs(output_dir, exist_ok=True)
         
         if mode == "audio":
-            file_path = download_audio(url, output_dir=output_dir, on_progress=progress_callback, silent=True)
+            file_path = download_audio(url, output_dir=output_dir, on_progress=progress_callback, silent=True, max_concurrent=32)
             if file_path and not file_path.endswith(".mp3"):
                 mp3_path = os.path.splitext(file_path)[0] + ".mp3"
                 try:
@@ -110,7 +110,7 @@ def background_download(job_id: str, url: str, mode: str, output_dir: str = "./d
                 except Exception as e:
                     print("FFmpeg mp3 donusturme hatasi:", e)
         else:
-            file_path = download_video(url, output_dir=output_dir, on_progress=progress_callback, silent=True)
+            file_path = download_video(url, output_dir=output_dir, on_progress=progress_callback, silent=True, max_concurrent=32)
             
         current_job = db.query(models.DownloadJob).filter(models.DownloadJob.id == job_id).first()
         if current_job:
