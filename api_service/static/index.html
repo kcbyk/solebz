@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solenz Downloader - API Portal</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="background-glow"></div>
+    
+    <div class="container">
+        <header>
+            <h1>Solenz <span>API</span></h1>
+            <p>Hızlı, Kesintisiz ve Güçlü Medya İndirme Servisi</p>
+        </header>
+
+        <main>
+            <div class="card">
+                <h2>Geliştirici Anahtarı Al</h2>
+                <p>Sistemi uzaktan kullanmak için uygulamanıza özel bir anahtar (API Key) üretin.</p>
+                
+                <div class="input-group">
+                    <input type="text" id="appName" placeholder="Uygulama Adı (Örn: Discord Bot)" />
+                    <button id="generateBtn" onclick="generateKey()">Oluştur</button>
+                </div>
+
+                <div id="resultBox" class="result-box hidden">
+                    <p>İşte API Anahtarınız (Bir daha gösterilmeyecektir):</p>
+                    <div class="key-display" onclick="copyKey()">
+                        <code id="apiKeyText"></code>
+                        <span class="copy-hint">Kopyalamak için tıklayın</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>API Dökümantasyonu</h2>
+                <div class="doc-item">
+                    <span class="badge post">POST</span> <code>/api/v1/download</code>
+                    <p>Medya indirme işlemini başlatır.</p>
+                    <pre><code>Headers:
+  x-api-key: "solenz_..."
+
+Body (JSON):
+{
+  "url": "https://...",
+  "mode": "audio" // veya "video"
+}</code></pre>
+                </div>
+                
+                <div class="doc-item">
+                    <span class="badge get">GET</span> <code>/api/stats</code>
+                    <p>API kullanım istatistiklerini getirir.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

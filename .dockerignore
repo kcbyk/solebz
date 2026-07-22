@@ -1,0 +1,13 @@
+.git
+.venv
+venv
+__pycache__
+*.pyc
+dist
+build
+*.egg-info
+test_downloads
+debug_*.py
+test_*.py
+web/node_modules
+web/.next
