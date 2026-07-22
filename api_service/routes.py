@@ -62,6 +62,8 @@ def generate_key(req: KeyCreate, db: Session = Depends(get_db)):
 import os
 import subprocess
 from fastapi.responses import FileResponse
+from solenz_downloader.core.client import SolenzClient
+from solenz_downloader.extractors.youtube import YouTubeExtractor
 
 def background_download(job_id: str, url: str, mode: str, output_dir: str = "./downloads"):
     db = database.SessionLocal()
@@ -72,6 +74,17 @@ def background_download(job_id: str, url: str, mode: str, output_dir: str = "./d
         
         job.status = "downloading"
         db.commit()
+        
+        # Meta verileri (Baslik, Kapak Fotografi) al
+        try:
+            client = SolenzClient()
+            ext = YouTubeExtractor(client)
+            info = ext.extract(url)
+            job.title = info.title
+            job.cover = info.thumbnail
+            db.commit()
+        except Exception as e:
+            print("Metadata alinirken hata:", e)
 
         # Update progress via callback
         def progress_callback(downloaded: int, total: int | None, speed: float):
@@ -132,12 +145,21 @@ def get_status(job_id: str, db: Session = Depends(get_db)):
     if not job:
         raise HTTPException(status_code=404, detail="Islem bulunamadi.")
     
-    return {
+    response_data = {
         "job_id": job.id,
         "status": job.status,
         "progress": job.progress,
         "error": job.error_message
     }
+    
+    if job.status == "completed":
+        response_data["url"] = f"https://solebz.onrender.com/api/v1/file/{job.id}"
+        if job.title:
+            response_data["title"] = job.title
+        if job.cover:
+            response_data["cover"] = job.cover
+            
+    return response_data
 
 def cleanup_file(path: str):
     try:

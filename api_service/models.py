@@ -22,4 +22,5 @@ class DownloadJob(Base):
     file_path = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     error_message = Column(String, nullable=True)
-
+    title = Column(String, nullable=True)
+    cover = Column(String, nullable=True)
