@@ -61,6 +61,7 @@ def generate_key(req: KeyCreate, db: Session = Depends(get_db)):
 
 import os
 import subprocess
+import threading
 from fastapi.responses import FileResponse
 from solenz_downloader.core.client import SolenzClient
 from solenz_downloader.extractors.youtube import YouTubeExtractor
@@ -169,7 +170,7 @@ def cleanup_file(path: str):
         print(f"Dosya temizleme hatasi: {e}")
 
 @router.get("/api/v1/file/{job_id}")
-def download_file(job_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def download_file(job_id: str, db: Session = Depends(get_db)):
     job = db.query(models.DownloadJob).filter(models.DownloadJob.id == job_id).first()
     if not job or job.status != "completed" or not job.file_path:
         raise HTTPException(status_code=404, detail="Dosya hazir degil veya bulunamadi.")
@@ -179,10 +180,16 @@ def download_file(job_id: str, background_tasks: BackgroundTasks, db: Session = 
         
     filename = os.path.basename(job.file_path)
     
-    # Dosya gonderildikten sonra silinmesi icin arka plana gorev ekliyoruz
-    background_tasks.add_task(cleanup_file, job.file_path)
+    # Dosya gonderildikten SONRA degil, 10 dakika sonra silinmesi icin zamanlayici ekliyoruz.
+    # Bu sayede tarayici HEAD (pre-flight) istegi atarsa dosya erkenden silinmez.
+    threading.Timer(600, cleanup_file, args=[job.file_path]).start()
     
-    return FileResponse(path=job.file_path, filename=filename, media_type="application/octet-stream")
+    media_type = "video/mp4" if filename.endswith(".mp4") else "audio/mpeg" if filename.endswith(".mp3") else "application/octet-stream"
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"'
+    }
+    
+    return FileResponse(path=job.file_path, filename=filename, media_type=media_type, headers=headers)
 
 @router.get("/api/v1/search")
 def search_media(query: str, limit: int = 10, api_key: models.APIKey = Depends(verify_api_key)):
