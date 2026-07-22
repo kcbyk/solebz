@@ -186,8 +186,10 @@ def download_file(job_id: str, db: Session = Depends(get_db)):
     threading.Timer(600, cleanup_file, args=[job.file_path]).start()
     
     media_type = "video/mp4" if filename.endswith(".mp4") else "audio/mpeg" if filename.endswith(".mp3") else "application/octet-stream"
+    from urllib.parse import quote
+    encoded_filename = quote(filename)
     headers = {
-        "Content-Disposition": f'attachment; filename="{filename}"'
+        "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
     }
     
     return FileResponse(path=job.file_path, filename=filename, media_type=media_type, headers=headers)
