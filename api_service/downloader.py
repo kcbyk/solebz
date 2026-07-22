@@ -2,7 +2,11 @@ import requests
 import os
 
 def download_file_to_disk(url: str, output_path: str, progress_callback=None):
-    response = requests.get(url, stream=True)
+    proxies = {
+        "http": "socks5h://127.0.0.1:1055",
+        "https": "socks5h://127.0.0.1:1055",
+    }
+    response = requests.get(url, stream=True, proxies=proxies)
     response.raise_for_status()
     total_size = int(response.headers.get('content-length', 0))
     

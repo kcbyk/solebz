@@ -9,7 +9,7 @@ WORKDIR /app
 COPY . /app
 
 # Python bagimliliklarini kur (yt-dlp yerine playwright ekliyoruz)
-RUN pip install --no-cache-dir fastapi uvicorn sqlalchemy pydantic curl_cffi requests playwright playwright-stealth
+RUN pip install --no-cache-dir fastapi uvicorn sqlalchemy pydantic curl_cffi requests pysocks playwright playwright-stealth
 
 # Playwright tarayicisini ve bagimliliklarini kur
 RUN playwright install --with-deps chromium

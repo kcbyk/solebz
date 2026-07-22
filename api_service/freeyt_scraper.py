@@ -16,7 +16,13 @@ async def extract_freeyt(url: str) -> dict:
     logger.info(f"FreeYT scraper baslatiliyor: {url}")
     
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True, args=["--disable-blink-features=AutomationControlled"])
+        # Render uzerinde Tailscale SOCKS5 proxy'sini kullan
+        # Boylece istekler datacenter IP'si yerine Exit Node (Ev IP'si) uzerinden cikar
+        browser = await p.chromium.launch(
+            headless=True, 
+            args=["--disable-blink-features=AutomationControlled"],
+            proxy={"server": "socks5://127.0.0.1:1055"}
+        )
         context = await browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
         )
