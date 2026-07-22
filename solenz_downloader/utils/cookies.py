@@ -4,8 +4,15 @@ from __future__ import annotations
 
 import http.cookiejar
 import json
+import logging
+import os
+import glob
+import random
 import time
 from typing import Any
+
+logger = logging.getLogger("solenz.cookies")
+
 
 
 class CookieJar:
@@ -117,3 +124,54 @@ class CookieJar:
 
     def __repr__(self) -> str:
         return f"CookieJar(domains={list(self._jar.keys())}, total={len(self)})"
+
+class CookiePool:
+    """YouTube gibi servislerin bot korumasını aşmak için çerez havuzu (Cookie Pool).
+    
+    Belirtilen klasördeki (örn. 'cookies/') .txt dosyalarını okur
+    ve her istekte rastgele bir çerez seçer.
+    """
+
+    def __init__(self, directory: str = "cookies") -> None:
+        self.directory = directory
+        self.pool: list[str] = []
+        self._load_cookies()
+
+    def _load_cookies(self) -> None:
+        """Belirtilen klasördeki tüm .txt dosyalarından çerezleri yükler."""
+        if not os.path.exists(self.directory):
+            try:
+                os.makedirs(self.directory, exist_ok=True)
+                logger.info(f"Cookie klasoru olusturuldu: {self.directory}")
+            except Exception as e:
+                logger.error(f"Cookie klasoru olusturulamadi: {e}")
+            return
+
+        txt_files = glob.glob(os.path.join(self.directory, "*.txt"))
+        loaded_count = 0
+
+        for file_path in txt_files:
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    content = f.read().strip()
+                    # Eger dosya bombossa veya cok kısaysa alma
+                    if len(content) > 10:
+                        self.pool.append(content)
+                        loaded_count += 1
+            except Exception as e:
+                logger.warning(f"Cookie dosyasi okunamadi ({file_path}): {e}")
+
+        if loaded_count > 0:
+            logger.info(f"Havuzdan {loaded_count} adet cerez basariyla yuklendi.")
+        else:
+            logger.info("Havuzda cerez bulunamadi. Varsayilan cerez kullanilacak.")
+
+    def get_random_cookie_string(self) -> str:
+        """Havuzdan rastgele bir cerez dondurur. Havuz bossa varsayilani dondurur."""
+        if not self.pool:
+            return "CONSENT=YES+cb.20210328-17-p0.en+FX+435"
+        
+        cookie = random.choice(self.pool)
+        logger.debug("Havuzdan rastgele bir cerez secildi.")
+        return cookie
+

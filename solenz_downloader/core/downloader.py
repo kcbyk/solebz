@@ -160,6 +160,7 @@ class SolenzDownloader:
             and self.max_concurrent > 1
             and supports_range
             and existing_size == 0  # resume ile parcali indirme uyumsuz
+            and False  # YouTube 403 hatalari nedeniyle paralel indirme devre disi
         ):
             logger.info("PARALEL INDIRME kullanılıyor ({} segment)".format(self.max_concurrent))
             return self._download_parallel(

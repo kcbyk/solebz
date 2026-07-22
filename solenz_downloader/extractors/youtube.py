@@ -23,8 +23,13 @@ from .base import BaseExtractor, registry
 from ..core.models import MediaResult, StreamInfo, YouTubeSearchResult
 from ..exceptions import ExtractionError, AgeGateError
 from ..utils.headers import get_youtube_headers
+from ..utils.cookies import CookiePool
 
 logger = logging.getLogger("solenz.youtube")
+
+# Havuzdan rastgele cerez cekmek icin pool nesnesi olusturalim
+cookie_pool = CookiePool(directory="cookies")
+
 
 
 # --------------------------------------------------------------------------- #
@@ -190,7 +195,7 @@ class YouTubeExtractor(BaseExtractor):
         # 2. Web sayfasindan sts al (varsa)
         watch_url = f"https://www.youtube.com/watch?v={video_id}"
         headers = get_youtube_headers(referer=watch_url)
-        headers["Cookie"] = "CONSENT=YES+cb.20210328-17-p0.en+FX+435"
+        headers["Cookie"] = cookie_pool.get_random_cookie_string()
 
         try:
             resp = self.client.get(watch_url, headers=headers, timeout=10)
@@ -254,7 +259,6 @@ class YouTubeExtractor(BaseExtractor):
             "Content-Type": "application/json",
             "Origin": "https://www.youtube.com",
             "Referer": "https://www.youtube.com/",
-            "Cookie": "CONSENT=YES+cb.20210328-17-p0.en+FX+435",
         }
         headers.update(_ANDROID_VR["headers"])
         if visitor_data:
@@ -301,8 +305,12 @@ class YouTubeExtractor(BaseExtractor):
             "Content-Type": "application/json",
             "Origin": "https://www.youtube.com",
             "Referer": "https://www.youtube.com/",
-            "Cookie": "CONSENT=YES+cb.20210328-17-p0.en+FX+435",
         }
+        
+        # Sadece WEB tabanli istemciler icin Cookie gonder
+        if client_cfg["name"].startswith("WEB"):
+            headers["Cookie"] = cookie_pool.get_random_cookie_string()
+            
         headers.update(client_cfg.get("headers", {}))
         if visitor_data:
             headers["X-Goog-Visitor-Id"] = visitor_data
@@ -326,7 +334,7 @@ class YouTubeExtractor(BaseExtractor):
     def _extract_from_webpage(self, video_id: str, url: str) -> MediaResult:
         watch_url = f"https://www.youtube.com/watch?v={video_id}"
         headers = get_youtube_headers(referer=watch_url)
-        headers["Cookie"] = "CONSENT=YES+cb.20210328-17-p0.en+FX+435"
+        headers["Cookie"] = cookie_pool.get_random_cookie_string()
 
         resp = self.client.get(watch_url, headers=headers)
         if resp.status_code != 200:
@@ -546,7 +554,7 @@ class YouTubeExtractor(BaseExtractor):
         # Basit bir web istemcisi kullanarak arama yap
         search_url = f"https://www.youtube.com/results?search_query={quote(query)}"
         headers = get_youtube_headers(referer="https://www.youtube.com/")
-        headers["Cookie"] = "CONSENT=YES+cb.20210328-17-p0.en+FX+435"
+        headers["Cookie"] = cookie_pool.get_random_cookie_string()
         
         resp = self.client.get(search_url, headers=headers, timeout=15)
         html = resp.text
