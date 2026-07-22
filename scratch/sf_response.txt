@@ -1,0 +1,31 @@
+/*js-response*/(function(){
+  function del(){while(document.body.firstChild){document.body.removeChild(document.body.firstChild);}};
+  
+if(window.location.hostname.search(/(?:^|\.|@)(savefrom\.net|sfrom\.net|ssyoutube\.com)$/i) == -1) {
+  alert('Please go to http://savefrom.net/ to get direct links');
+  del();
+  return;
+}
+  function showResult(){
+    var success = false;
+    try {
+      var d = window.parent.document;
+      if(d && d.getElementById) {
+        var e = d.getElementById('sf_result');
+        if(e && e.innerHTML) {
+          window.parent.sf.finishRequest(true);;
+          e.innerHTML = '';
+          window.parent.sf.result.showEmptyResult({"html":"Something went wrong. Please try to reload the page or use another browser.","invalid_request":true,"resource":"","success":false,"source_url":"https://www.youtube.com/watch?v=upItYS15DT4"},false,true,false);;
+          window.parent.sf.enableElement('sf_submit', true);
+          success=true;
+        }
+      }
+    } catch(err){} 
+    del();
+    if(!success) {
+      var alt = '';
+      if(alt) alert(alt);
+    }
+  }
+  showResult();
+})();/*js-response*/

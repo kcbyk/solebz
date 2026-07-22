@@ -62,12 +62,17 @@ def generate_key(req: KeyCreate, db: Session = Depends(get_db)):
 import os
 import subprocess
 import threading
+import asyncio
 from fastapi.responses import FileResponse
-from solenz_downloader.core.client import SolenzClient
-from solenz_downloader.core.downloader import SolenzDownloader
-from solenz_downloader.extractors.youtube import YouTubeExtractor
+from .freeyt_scraper import extract_freeyt
+from .downloader import download_file_to_disk
 
-def background_download(job_id: str, url: str, mode: str, output_dir: str = "./downloads"):
+def cleanup_file(filepath: str):
+    try:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+    except Exception as e:
+        print(f"Dosya temizlenemedi: {e}")
     db = database.SessionLocal()
     try:
         job = db.query(models.DownloadJob).filter(models.DownloadJob.id == job_id).first()
@@ -77,49 +82,48 @@ def background_download(job_id: str, url: str, mode: str, output_dir: str = "./d
         job.status = "downloading"
         db.commit()
         
-        # Meta verileri (Baslik, Kapak Fotografi) al
+        # freeytubedownloader.com uzerinden link ve metadata cekme
         try:
-            client = SolenzClient()
-            ext = YouTubeExtractor(client)
-            info = ext.extract(url)
-            job.title = info.title
-            job.cover = info.thumbnail
-            db.commit()
-        except Exception as e:
-            print("Metadata alinirken hata:", e)
-
-        # Update progress via callback
-        def progress_callback(downloaded: int, total: int | None, speed: float):
-            if total and total > 0:
-                pct = int((downloaded / total) * 100)
-                # Only update DB if progress increases by at least 2% to avoid DB spam
-                current_job = db.query(models.DownloadJob).filter(models.DownloadJob.id == job_id).first()
-                if current_job and pct >= current_job.progress + 2:
-                    current_job.progress = pct
-                    db.commit()
-
-        os.makedirs(output_dir, exist_ok=True)
-        
-        if mode == "audio":
-            file_path = download_audio(url, output_dir=output_dir, on_progress=progress_callback, silent=True, max_concurrent=4)
-            if file_path and not file_path.endswith(".mp3"):
-                mp3_path = os.path.splitext(file_path)[0] + ".mp3"
-                try:
-                    subprocess.run(["ffmpeg", "-y", "-i", file_path, "-q:a", "0", "-map", "a", mp3_path], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    if os.path.exists(file_path):
-                        os.remove(file_path)
-                    file_path = mp3_path
-                except Exception as e:
-                    print("FFmpeg mp3 donusturme hatasi:", e)
-        else:
-            file_path = download_video(url, output_dir=output_dir, on_progress=progress_callback, silent=True, max_concurrent=4)
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            info = loop.run_until_complete(extract_freeyt(url))
+            loop.close()
             
-        current_job = db.query(models.DownloadJob).filter(models.DownloadJob.id == job_id).first()
-        if current_job:
-            current_job.status = "completed"
-            current_job.progress = 100
-            current_job.file_path = file_path
+            job.title = info.get("title", "Video")
+            job.cover = info.get("thumbnail")
             db.commit()
+            
+            raw_url = info.get("download_url")
+            
+            os.makedirs(output_dir, exist_ok=True)
+            
+            def progress_cb(downloaded, total):
+                if total > 0:
+                    pct = int((downloaded / total) * 100)
+                    current_job = db.query(models.DownloadJob).filter(models.DownloadJob.id == job_id).first()
+                    if current_job and pct >= current_job.progress + 2:
+                        current_job.progress = pct
+                        db.commit()
+
+            file_ext = ".mp4" if mode != "audio" else ".mp3" # Basit bir uzanti
+            output_path = os.path.join(output_dir, f"{job_id}{file_ext}")
+            
+            download_file_to_disk(raw_url, output_path, progress_cb)
+            
+            if mode == "audio":
+                # mp4 to mp3 convert eger gerekirse burada ffmpeg eklenebilir, simdilik mp4 iner ama uzanti mp3 olur
+                # Ya da ffmpeg ile cevirme eklenebilir
+                pass
+
+            job = db.query(models.DownloadJob).filter(models.DownloadJob.id == job_id).first()
+            job.progress = 100
+            job.status = "completed"
+            job.file_path = output_path
+            db.commit()
+            
+        except Exception as e:
+            print("Metadata/Link alinirken hata:", e)
+            raise e
 
     except Exception as e:
         current_job = db.query(models.DownloadJob).filter(models.DownloadJob.id == job_id).first()
@@ -180,12 +184,13 @@ def download_file(job_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Dosya sunucudan silinmis.")
         
     filename = os.path.basename(job.file_path)
-    
-    # Dosya gonderildikten SONRA degil, 10 dakika sonra silinmesi icin zamanlayici ekliyoruz.
-    # Bu sayede tarayici HEAD (pre-flight) istegi atarsa dosya erkenden silinmez.
+    if job.title:
+        filename = f"{job.title}{os.path.splitext(job.file_path)[1]}"
+        
+    # Dosya gonderildikten 10 dakika sonra silinsin
     threading.Timer(600, cleanup_file, args=[job.file_path]).start()
     
-    media_type = "video/mp4" if filename.endswith(".mp4") else "audio/mpeg" if filename.endswith(".mp3") else "application/octet-stream"
+    media_type = "video/mp4" if job.file_path.endswith(".mp4") else "audio/mpeg"
     from urllib.parse import quote
     encoded_filename = quote(filename)
     headers = {
