@@ -159,27 +159,54 @@ class YouTubeExtractor(BaseExtractor):
     # ================================================================== #
 
     def _get_visitor_data(self, video_id: str) -> tuple[str, int]:
-        """Web sayfasindan visitorData ve signatureTimestamp cikarir."""
+        """visitorData ve signatureTimestamp cikarir.
+        
+        Render sunucusu gibi bulut IP'lerinde YouTube watch html sayfasini engelledigi icin
+        visitorData bilgisi dogrudan InnerTube visitor_id API'sinden alinir.
+        """
+        visitor_data = ""
+        sts = 20648
+
+        # 1. InnerTube API'sinden visitorData al (Engellenmeyen %100 API)
+        try:
+            v_url = "https://www.youtube.com/youtubei/v1/visitor_id"
+            payload = {
+                "context": {
+                    "client": {
+                        "hl": "en",
+                        "gl": "US",
+                        "clientName": "ANDROID",
+                        "clientVersion": "19.05.36",
+                    }
+                }
+            }
+            v_resp = self.client.post(v_url, json_data=payload, timeout=10)
+            if v_resp.status_code == 200:
+                v_json = v_resp.json()
+                visitor_data = v_json.get("responseContext", {}).get("visitorData", "")
+        except Exception as e:
+            logger.warning("visitor_id API hatasi: %s", e)
+
+        # 2. Web sayfasindan sts al (varsa)
         watch_url = f"https://www.youtube.com/watch?v={video_id}"
         headers = get_youtube_headers(referer=watch_url)
         headers["Cookie"] = "CONSENT=YES+cb.20210328-17-p0.en+FX+435"
 
         try:
-            resp = self.client.get(watch_url, headers=headers, timeout=15)
+            resp = self.client.get(watch_url, headers=headers, timeout=10)
             html = resp.text
 
-            visitor_data = ""
-            vd_match = re.search(r'"VISITOR_DATA"\s*:\s*"([^"]+)"', html)
-            if vd_match:
-                visitor_data = vd_match.group(1)
+            if not visitor_data:
+                vd_match = re.search(r'"VISITOR_DATA"\s*:\s*"([^"]+)"', html)
+                if vd_match:
+                    visitor_data = vd_match.group(1)
 
-            sts = 0
             # Player JS URL'sinden sts cikar
             js_match = re.search(r'"(/s/player/[^"]+base\.js)"', html)
             if js_match:
                 try:
                     js_resp = self.client.get(
-                        f"https://www.youtube.com{js_match.group(1)}", timeout=15
+                        f"https://www.youtube.com{js_match.group(1)}", timeout=10
                     )
                     sts_match = re.search(r'signatureTimestamp["\s:]+(\d+)', js_resp.text)
                     if sts_match:
@@ -187,21 +214,16 @@ class YouTubeExtractor(BaseExtractor):
                 except Exception:
                     pass
 
-            # HTML icinden de dene
-            if not sts:
+            if not sts or sts == 20648:
                 sts_match = re.search(r'"STS"\s*:\s*(\d+)', html)
                 if sts_match:
                     sts = int(sts_match.group(1))
 
-            if not sts:
-                sts = 20648  # fallback
-
-            logger.debug("visitorData: %s..., sts: %d", visitor_data[:30], sts)
-            return visitor_data, sts
-
         except Exception as e:
-            logger.warning("Visitor data alinamadi: %s", e)
-            return "", 20648
+            logger.warning("Web sayfasindan STS cikarilamadi: %s", e)
+
+        logger.debug("visitorData: %s..., sts: %d", visitor_data[:30], sts)
+        return visitor_data, sts or 20648
 
     # ================================================================== #
     #  ANDROID_VR ISTEMCISI (ANA YONTEM)
