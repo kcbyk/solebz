@@ -233,6 +233,12 @@ class SolenzDownloader:
                 ) from e
 
         if resp.status_code not in (200, 206):
+            if resp.status_code == 403:
+                logger.warning("403 Forbidden alindi. yt-dlp yedek indirme motoru deneniyor...")
+                try:
+                    return self._download_ytdlp(url, output_path, referer=referer)
+                except Exception as fallback_err:
+                    logger.error("yt-dlp yedek indirme de basarisiz: %s", fallback_err)
             raise DownloadError(
                 f"Beklenmeyen HTTP durumu: {resp.status_code}"
             )
@@ -531,3 +537,41 @@ class SolenzDownloader:
             return basename[:150]
 
         return f"download.{fallback_ext}"
+
+    def _download_ytdlp(self, url: str, output_path: str, referer: str | None = None) -> str:
+        """yt-dlp kullanarak medyayi dogrudan dosyaya indirir."""
+        import glob
+        try:
+            import yt_dlp
+        except ImportError:
+            raise DownloadError("yt-dlp kurulu degil")
+
+        txt_files = glob.glob("cookies/*.txt")
+        cookie_file = txt_files[0] if txt_files else None
+
+        target_url = referer if (referer and ("youtube.com" in referer or "youtu.be" in referer)) else url
+
+        ydl_opts: dict[str, Any] = {
+            "outtmpl": output_path,
+            "quiet": True,
+            "no_warnings": True,
+            "nocheckcertificate": True,
+            "overwrites": True,
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android", "web", "tv"],
+                }
+            },
+        }
+
+        if cookie_file and os.path.exists(cookie_file):
+            ydl_opts["cookiefile"] = cookie_file
+
+        logger.info("yt-dlp ile dosya indirme baslatiliyor: %s", output_path)
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([target_url])
+            return output_path
+        except Exception as e:
+            raise DownloadError(f"yt-dlp indirme hatasi: {e}") from e
+

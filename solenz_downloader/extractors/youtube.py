@@ -468,7 +468,7 @@ class YouTubeExtractor(BaseExtractor):
                             url=fmt_url,
                             format_id=format_id,
                             ext=ext,
-                            resolution=res,
+                            quality=res or "",
                             height=height,
                             width=width,
                             filesize=filesize,
@@ -476,8 +476,8 @@ class YouTubeExtractor(BaseExtractor):
                             bitrate=int(bitrate) if bitrate else None,
                             has_video=has_video,
                             has_audio=has_audio,
-                            vcodec=vcodec,
-                            acodec=acodec,
+                            codec=vcodec if vcodec != "none" else "",
+                            audio_codec=acodec if acodec != "none" else "",
                         )
                     )
 
